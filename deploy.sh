@@ -53,6 +53,8 @@ print_info "AWS Account: ${AWS_ACCOUNT}"
 print_info "AWS Region: ${AWS_REGION:-us-east-1}"
 echo ""
 
+cd "/deployment"  # Ir al directorio del script
+
 # Inicializar OpenTofu
 print_info "Inicializando OpenTofu..."
 tofu init

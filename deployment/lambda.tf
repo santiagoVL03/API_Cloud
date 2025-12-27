@@ -1,4 +1,4 @@
-# Empaquetar funciones Lambda
+# Empaqueta funciones Lambda
 data "archive_file" "lambda_functions" {
   for_each = {
     insert_sensor_data   = "insert_sensor_data.py"
@@ -12,7 +12,7 @@ data "archive_file" "lambda_functions" {
   }
 
   type        = "zip"
-  source_file = "${path.module}/lambda_functions/${each.value}"
+  source_file = "${path.module}/../lambda_functions/${each.value}"
   output_path = "${path.module}/.terraform/lambda_zips/${each.key}.zip"
 }
 
@@ -189,6 +189,6 @@ resource "aws_lambda_function" "check_sensor_status" {
   }
 
   tags = {
-    Name = "Check Sensor Status (Scheduled)"
+    Name = "Check Sensor Status - Scheduled"
   }
 }

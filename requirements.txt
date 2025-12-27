@@ -4,3 +4,7 @@ python-dotenv
 pytest
 gunicorn
 flasgger
+opencv-python
+numpy
+requests
+Pillow

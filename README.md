@@ -1,6 +1,26 @@
-# Sistema de Detección de Niebla, Vapor y Humo - Cloud Infrastructure
+# Sistema de Detección de Niebla y Humo - Fog + Cloud Computing
 
-Este proyecto implementa la infraestructura serverless en AWS para un sistema inteligente de detección y clasificación de niebla, vapor y humo en entornos urbanos.
+Este proyecto implementa un **sistema completo e inteligente** de detección temprana de niebla y humo en entornos urbanos, utilizando una arquitectura híbrida que combina **Fog Computing** (procesamiento local) y **Cloud Computing** (almacenamiento y alertas serverless en AWS).
+
+## 🎯 Componentes del Sistema
+
+### 1. FOG COMPUTING (Edge/Local Processing)
+- **Flask API** con detección temprana inteligente
+- **Sensores** de temperatura y humedad
+- **Cámara IP** para captura de video (192.168.2.134)
+- **Visión por Computadora** sin ML (OpenCV)
+- **Análisis en tiempo real** con umbrales configurables
+
+👉 [Ver documentación completa de Fog Computing](FOG_COMPUTING_README.md)
+
+### 2. CLOUD COMPUTING (AWS Serverless)
+- **8 Microservicios Lambda** (Python 3.11)
+- **3 Tablas DynamoDB** serverless
+- **API Gateway HTTP** para REST API
+- **Amazon SNS** para alertas por email
+- **EventBridge** para verificación automática cada 2 horas
+
+👉 [Ver documentación completa del sistema](COMPLETE_SYSTEM_OVERVIEW.md)
 
 ## 🏗️ Arquitectura
 
