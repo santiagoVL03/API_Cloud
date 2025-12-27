@@ -53,7 +53,7 @@ print_info "AWS Account: ${AWS_ACCOUNT}"
 print_info "AWS Region: ${AWS_REGION:-us-east-1}"
 echo ""
 
-cd "/deployment"  # Ir al directorio del script
+cd "./deployment"  # Ir al directorio del script
 
 # Inicializar OpenTofu
 print_info "Inicializando OpenTofu..."
@@ -119,7 +119,7 @@ print_warning "en los enlaces de los emails para recibir alertas."
 echo ""
 
 print_info "Para ver todos los outputs:"
-echo "  tofu output -json | jq"
+echo "  tofu output -json"
 echo ""
 
 print_info "Para destruir la infraestructura:"
@@ -146,10 +146,10 @@ Endpoints:
   GET  ${API_ENDPOINT}/sensor-status
 
 DynamoDB Tables:
-$(tofu output -json dynamodb_tables | jq -r 'to_entries[] | "  - \(.key): \(.value)"')
+$(tofu output -json dynamodb_tables)
 
 Lambda Functions:
-$(tofu output -json lambda_functions | jq -r 'to_entries[] | "  - \(.key): \(.value)"')
+$(tofu output -json lambda_functions)
 
 SNS Topic ARN:
 $(tofu output -raw sns_topic_arn)

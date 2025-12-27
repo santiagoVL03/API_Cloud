@@ -214,21 +214,21 @@ class Cloud_fogController:
         if detection_results['fog_detected']:
             alert_message = "FOG DETECTED - Reduced visibility"
             danger_alert = f"High fog probability: {detection_results['probability_fog']*100:.1f}%"
-        elif detection_results['smoke_detected']:
-            alert_message = "SMOKE DETECTED - Possible fire hazard"
-            danger_alert = f"High smoke probability: {detection_results['probability_smoke']*100:.1f}%"
-        elif threshold_check['fog_conditions_met']:
-            alert_message = "FOG CONDITIONS - Monitoring"
-        elif threshold_check['smoke_conditions_met']:
-            alert_message = "SMOKE CONDITIONS - Monitoring"
-        
+        if detection_results['smoke_detected']:
+            alert_message = "SMOKE DETECTED - Possible fire hazard" + alert_message
+            danger_alert = f"High smoke probability: {detection_results['probability_smoke']*100:.1f}%" + danger_alert
+        if threshold_check['fog_conditions_met']:
+            alert_message = "FOG CONDITIONS - Monitoring" + alert_message
+        if threshold_check['smoke_conditions_met']:
+            alert_message = "SMOKE CONDITIONS - Monitoring" + alert_message
+
         # Format for cloud API (matching the Lambda function schema)
         cloud_payload = {
             "data": {
                 "temperature": str(temperature),
                 "humidity": str(humidity / 100.0),  # Convert to 0-1 range
                 "probability_vapor": str(detection_results['probability_vapor']),
-                "probability_smug": str(detection_results['probability_smug']),
+                "probability_smug": str(detection_results['probability_smog']),
                 "probability_smoke": str(detection_results['probability_smoke']),
                 "probability_fog": str(detection_results['probability_fog']),
                 "alert": alert_message,

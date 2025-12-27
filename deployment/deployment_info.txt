@@ -1,0 +1,27 @@
+=== Información de Despliegue ===
+Fecha: Sat Dec 27 03:16:51 PM -05 2025
+AWS Account: 800114385106
+AWS Region: us-east-1
+
+API Endpoint: https://3czhlao6ei.execute-api.us-east-1.amazonaws.com
+
+Endpoints:
+  POST https://3czhlao6ei.execute-api.us-east-1.amazonaws.com/sensor-data
+  POST https://3czhlao6ei.execute-api.us-east-1.amazonaws.com/sensor-status
+  GET  https://3czhlao6ei.execute-api.us-east-1.amazonaws.com/alerts/send
+  GET  https://3czhlao6ei.execute-api.us-east-1.amazonaws.com/sensor-data
+  GET  https://3czhlao6ei.execute-api.us-east-1.amazonaws.com/ml-detection
+  GET  https://3czhlao6ei.execute-api.us-east-1.amazonaws.com/alerts
+  GET  https://3czhlao6ei.execute-api.us-east-1.amazonaws.com/sensor-status
+
+DynamoDB Tables:
+
+
+Lambda Functions:
+
+
+SNS Topic ARN:
+arn:aws:sns:us-east-1:800114385106:fog-smoke-detection-alerts
+
+Verificación de sensores:
+  Cada 2 horas automáticamente
