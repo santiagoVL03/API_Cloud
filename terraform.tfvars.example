@@ -1,0 +1,23 @@
+# Ejemplo de archivo de variables personalizadas
+# Copia este archivo a terraform.tfvars y ajusta los valores
+
+# Región de AWS
+aws_region = "us-east-1"
+
+# Ambiente
+environment = "production"
+
+# Nombre del proyecto (usado en nombres de recursos)
+project_name = "fog-smoke-detection"
+
+# Emails para recibir alertas
+alert_emails = [
+  "santiagovl0308@gmail.com",
+  "jeiboxgmr@gmail.com"
+]
+
+# Umbrales para generar alertas automáticas
+temperature_threshold = 45        # Temperatura en grados Celsius
+humidity_threshold = 0.10         # Humedad como decimal (0.10 = 10%)
+smoke_probability_threshold = 0.70 # Probabilidad de humo (0.70 = 70%)
+fog_probability_threshold = 0.60   # Probabilidad de niebla (0.60 = 60%) - CRÍTICO para seguridad vial
