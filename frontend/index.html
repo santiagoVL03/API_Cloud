@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cloud Fog API - Monitoring Dashboard</title>
+    
+    <!-- Bootstrap 5 -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Chart.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    
+    <!-- Full Calendar -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/6.1.10/index.global.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fullcalendar/6.1.10/index.global.min.js"></script>
+    
+    <!-- Bootstrap Icons -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.11.0/font/bootstrap-icons.min.css" rel="stylesheet">
+    
+    <style>
+        :root {
+            --primary-danger: #dc3545;
+            --primary-warning: #ffc107;
+            --primary-info: #0dcaf0;
+            --primary-success: #198754;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: #333;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            min-height: 100vh;
+            padding-top: 20px;
+            padding-bottom: 40px;
+        }
+        
+        .navbar {
+            background: rgba(0, 0, 0, 0.8) !important;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        }
+        
+        .card {
+            border: none;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+            background: rgba(255, 255, 255, 0.95);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2);
+        }
+        
+        .card-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 12px 12px 0 0 !important;
+            font-weight: 600;
+            padding: 15px 20px;
+        }
+        
+        .badge-danger-custom { background: #dc3545; }
+        .badge-warning-custom { background: #ffc107; color: #333; }
+        .badge-info-custom { background: #0dcaf0; }
+        .badge-success-custom { background: #198754; }
+        
+        .stat-box {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+            margin-bottom: 15px;
+        }
+        
+        .stat-box h5 { margin-bottom: 10px; }
+        .stat-box .stat-value { font-size: 28px; font-weight: bold; }
+        
+        .table-hover tbody tr:hover {
+            background-color: rgba(102, 126, 234, 0.1);
+        }
+        
+        .alert-badge {
+            display: inline-block;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-right: 5px;
+        }
+        
+        .chart-container {
+            position: relative;
+            height: 400px;
+            margin-bottom: 20px;
+        }
+        
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s ease-in-out infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .fc {
+            background: white;
+            border-radius: 8px;
+        }
+        
+        .fc-button-primary {
+            background: #667eea !important;
+            border: none !important;
+        }
+        
+        .fc-button-primary:hover {
+            background: #764ba2 !important;
+        }
+        
+        .last-update {
+            font-size: 12px;
+            color: #999;
+            margin-top: 10px;
+        }
+        
+        .danger { color: #dc3545; }
+        .warning { color: #ffc107; }
+        .info { color: #0dcaf0; }
+        .success { color: #198754; }
+        
+        .tab-content {
+            background: white;
+            border-radius: 0 0 12px 12px;
+            padding: 20px;
+        }
+        
+        .nav-tabs .nav-link {
+            color: #667eea;
+            border: none;
+            border-bottom: 3px solid transparent;
+            font-weight: 500;
+        }
+        
+        .nav-tabs .nav-link.active {
+            color: white;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar navbar-dark mb-4">
+        <div class="container-fluid">
+            <span class="navbar-brand mb-0 h1">
+                <i class="bi bi-cloud-fog2"></i> Cloud Fog Monitoring System
+            </span>
+            <span id="sync-status" class="text-white">
+                <span class="loading-spinner"></span> Sincronizando...
+            </span>
+        </div>
+    </nav>
+
+    <div class="container-fluid">
+        <!-- Estadísticas Generales -->
+        <div class="row mb-4">
+            <div class="col-md-3">
+                <div class="stat-box">
+                    <h5>Alertas Totales</h5>
+                    <div class="stat-value" id="total-alerts">0</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-box" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                    <h5>Alertas Peligrosas</h5>
+                    <div class="stat-value" id="danger-alerts">0</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-box" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+                    <h5>Detecciones ML</h5>
+                    <div class="stat-value" id="ml-detections">0</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-box" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);">
+                    <h5>Registros Sensores</h5>
+                    <div class="stat-value" id="sensor-records">0</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabs Principales -->
+        <ul class="nav nav-tabs mb-3" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="alerts-tab" data-bs-toggle="tab" data-bs-target="#alerts" type="button" role="tab">
+                    <i class="bi bi-exclamation-triangle"></i> Alertas
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="detection-tab" data-bs-toggle="tab" data-bs-target="#detection" type="button" role="tab">
+                    <i class="bi bi-graph-up"></i> Detección ML
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="sensors-tab" data-bs-toggle="tab" data-bs-target="#sensors" type="button" role="tab">
+                    <i class="bi bi-thermometer-half"></i> Datos Sensores
+                </button>
+            </li>
+        </ul>
+
+        <div class="tab-content">
+            <!-- TAB 1: ALERTAS -->
+            <div class="tab-pane fade show active" id="alerts" role="tabpanel">
+                <div class="row">
+                    <!-- Calendario de Alertas -->
+                    <div class="col-lg-6 mb-4">
+                        <div class="card">
+                            <div class="card-header">
+                                <i class="bi bi-calendar-event"></i> Calendario de Alertas
+                            </div>
+                            <div class="card-body">
+                                <div id="calendar"></div>
+                                <div class="last-update">Actualizado cada 2 minutos</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Estadísticas de Alertas -->
+                    <div class="col-lg-6 mb-4">
+                        <div class="card">
+                            <div class="card-header">
+                                <i class="bi bi-pie-chart"></i> Distribución de Alertas
+                            </div>
+                            <div class="card-body">
+                                <div class="chart-container">
+                                    <canvas id="alertsChart"></canvas>
+                                </div>
+                                <div class="last-update">Actualizado cada 2 minutos</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tabla de Alertas EMAIL -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <i class="bi bi-envelope"></i> Alertas por Email
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover" id="emailAlertsTable">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Tipo</th>
+                                        <th>Estado</th>
+                                        <th>Fecha/Hora</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="emailAlertsList">
+                                    <tr><td colspan="4" class="text-center text-muted">Cargando...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tabla de Alertas DANGER -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <i class="bi bi-exclamation-circle"></i> Alertas de Peligro
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover" id="dangerAlertsTable">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Nivel</th>
+                                        <th>Alerta</th>
+                                        <th>Temperatura</th>
+                                        <th>Humedad</th>
+                                        <th>Fecha/Hora</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="dangerAlertsList">
+                                    <tr><td colspan="6" class="text-center text-muted">Cargando...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 2: DETECCIÓN ML -->
+            <div class="tab-pane fade" id="detection" role="tabpanel">
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <i class="bi bi-radar"></i> Detección de Amenazas (Últimas 5)
+                    </div>
+                    <div class="card-body">
+                        <div class="chart-container">
+                            <canvas id="mlDetectionChart"></canvas>
+                        </div>
+                        <div class="last-update">Actualizado cada 25 segundos</div>
+                    </div>
+                </div>
+
+                <!-- Tabla de Detecciones -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <i class="bi bi-table"></i> Historial de Detecciones ML
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover" id="mlDetectionTable">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Niebla</th>
+                                        <th>Humo</th>
+                                        <th>Vapor</th>
+                                        <th>Smug</th>
+                                        <th>Alerta</th>
+                                        <th>Nivel</th>
+                                        <th>Fecha/Hora</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="mlDetectionList">
+                                    <tr><td colspan="8" class="text-center text-muted">Cargando...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 3: DATOS SENSORES -->
+            <div class="tab-pane fade" id="sensors" role="tabpanel">
+                <div class="row mb-4">
+                    <!-- Gráfico Temperatura -->
+                    <div class="col-lg-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <i class="bi bi-thermometer-half"></i> Temperatura
+                            </div>
+                            <div class="card-body">
+                                <div class="chart-container">
+                                    <canvas id="temperatureChart"></canvas>
+                                </div>
+                                <div class="last-update">Actualizado cada 25 segundos</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Gráfico Humedad -->
+                    <div class="col-lg-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <i class="bi bi-droplet"></i> Humedad
+                            </div>
+                            <div class="card-body">
+                                <div class="chart-container">
+                                    <canvas id="humidityChart"></canvas>
+                                </div>
+                                <div class="last-update">Actualizado cada 25 segundos</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Gráfico Probabilidades -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <i class="bi bi-percent"></i> Probabilidades de Amenazas
+                    </div>
+                    <div class="card-body">
+                        <div class="chart-container">
+                            <canvas id="probabilitiesChart"></canvas>
+                        </div>
+                        <div class="last-update">Actualizado cada 25 segundos</div>
+                    </div>
+                </div>
+
+                <!-- Tabla de Datos Sensores -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <i class="bi bi-table"></i> Histórico de Sensores
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover" id="sensorDataTable">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Temp (°C)</th>
+                                        <th>Humedad (%)</th>
+                                        <th>Niebla</th>
+                                        <th>Humo</th>
+                                        <th>Vapor</th>
+                                        <th>Smug</th>
+                                        <th>Nivel</th>
+                                        <th>Fecha/Hora</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="sensorDataList">
+                                    <tr><td colspan="9" class="text-center text-muted">Cargando...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap 5 JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Dashboard Script -->
+    <script src="js/dashboard.js"></script>
+</body>
+</html>

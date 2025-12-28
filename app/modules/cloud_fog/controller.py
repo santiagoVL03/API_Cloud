@@ -22,7 +22,8 @@ class Cloud_fogController:
     
     def __init__(self):
         """Initialize controller with utilities and cloud API config."""
-        self.camera_util = CameraUtil(camera_ip="192.168.15.66")
+        self.camera_ip = os.getenv('CAMERA_IP', '192.168.15.66')
+        self.camera_util = CameraUtil(camera_ip=self.camera_ip)
         self.detection_util = DetectionUtil()
         
         # Cloud API endpoint (from environment or default)
@@ -186,7 +187,7 @@ class Cloud_fogController:
             'probability_fog': 0.0,
             'probability_smoke': 0.0,
             'probability_vapor': 0.0,
-            'probability_smog': 0.0,
+            'probability_smug': 0.0,
             'frames_analyzed': 0,
             'detection_method': 'threshold_only',
             'timestamp': datetime.now().isoformat()
@@ -215,12 +216,12 @@ class Cloud_fogController:
             alert_message = "FOG DETECTED - Reduced visibility"
             danger_alert = f"High fog probability: {detection_results['probability_fog']*100:.1f}%"
         if detection_results['smoke_detected']:
-            alert_message = "SMOKE DETECTED - Possible fire hazard" + alert_message
-            danger_alert = f"High smoke probability: {detection_results['probability_smoke']*100:.1f}%" + danger_alert
+            alert_message = "SMOKE DETECTED - Possible fire hazard - " + alert_message
+            danger_alert = f"High smoke probability: {detection_results['probability_smoke']*100:.1f}% - " + danger_alert
         if threshold_check['fog_conditions_met']:
-            alert_message = "FOG CONDITIONS - Monitoring" + alert_message
+            alert_message = "FOG CONDITIONS - Monitoring - " + alert_message
         if threshold_check['smoke_conditions_met']:
-            alert_message = "SMOKE CONDITIONS - Monitoring" + alert_message
+            alert_message = "SMOKE CONDITIONS - Monitoring - " + alert_message
 
         # Format for cloud API (matching the Lambda function schema)
         cloud_payload = {
@@ -228,7 +229,7 @@ class Cloud_fogController:
                 "temperature": str(temperature),
                 "humidity": str(humidity / 100.0),  # Convert to 0-1 range
                 "probability_vapor": str(detection_results['probability_vapor']),
-                "probability_smug": str(detection_results['probability_smog']),
+                "probability_smug": str(detection_results['probability_smug']),
                 "probability_smoke": str(detection_results['probability_smoke']),
                 "probability_fog": str(detection_results['probability_fog']),
                 "alert": alert_message,
