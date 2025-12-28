@@ -20,9 +20,9 @@ class DetectionUtil:
         # - Contrast: 50-70 (some details visible through fog)
         # - Saturation: 30-50 (desaturated colors)
         
-        self.fog_brightness_threshold = 90  # Lowered from 150
-        self.fog_contrast_threshold = 100     # Raised from 50 (more tolerant)
-        self.fog_saturation_threshold = 110   # Raised from 60 (more tolerant)
+        self.fog_brightness_threshold = 130  # Lowered from 150
+        self.fog_contrast_threshold = 60  # Raised from 50 (more tolerant)
+        self.fog_saturation_threshold = 70  # Raised from 60 (more tolerant)
         self.fog_dynamic_range_threshold = 80  # New: pixel range indicator
         
         # Smoke detection thresholds
@@ -78,11 +78,11 @@ class DetectionUtil:
         avg_vapor = np.mean(vapor_scores)
         avg_smug = np.mean(smug_scores)
         
-        # Determine detection (threshold: 0.5)
+        # Determine detection (threshold: 0.45)
         # Convert to native Python bool to avoid np.bool_ type issues
-        fog_detected = bool(avg_fog > 0.5)
-        smoke_detected = bool(avg_smoke > 0.5)
-        
+        fog_detected = bool(avg_fog > 0.45)
+        smoke_detected = bool(avg_smoke > 0.45)
+
         result = {
             'fog_detected': fog_detected,
             'smoke_detected': smoke_detected,
@@ -220,15 +220,18 @@ class DetectionUtil:
         IMPROVED: Distinguish smoke from fog
         
         Smoke characteristics:
-        - Medium brightness (darker than fog, lighter than clear)
-        - Blurred/soft edges (but localized)
-        - Medium saturation (darker tone, not completely desaturated)
-        - Variable contrasts (smoke edges are visible but soft)
+        - Can be ANY brightness (depends on fuego underneath)
+        - Localized pockets of haze (not uniform)
+        - Blurred/soft edges locally
+        - CAN have low saturation (gray smoke)
+        - Variable texture/density patterns
         
         Fog characteristics (to AVOID):
-        - Uniform blur across entire image
-        - Very low saturation (<50)
-        - Very low contrast globally
+        - UNIFORM blur across entire image
+        - GLOBAL low saturation + low contrast EVERYWHERE
+        - Smooth, even distribution
+        
+        Key difference: Smoke has LOCALIZED density, Fog is GLOBAL
         
         Args:
             frame: Input frame in BGR format
@@ -240,58 +243,117 @@ class DetectionUtil:
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
         
         try:
-            # ===== STEP 1: Check if this might be FOG instead of SMOKE =====
-            # Fog has very low saturation globally
             saturation = np.mean(hsv[:, :, 1]) # type: ignore
-            
-            # If saturation is very low (<50), this is likely FOG not SMOKE
-            if saturation < 50:
-                # Very desaturated = likely fog, not smoke
-                logger.debug(f"Smoke detection - Saturation too low ({saturation:.1f}), "
-                            f"likely fog not smoke. Score: 0.0")
-                return 0.0
-            
-            # ===== STEP 2: Brightness in expected range =====
             brightness = np.mean(gray) # type: ignore
-            in_brightness_range = (self.smoke_brightness_range[0] <= brightness <= 
-                                  self.smoke_brightness_range[1])
-            brightness_score = 1.0 if in_brightness_range else 0.3
             
-            # ===== STEP 3: Edge detection (Canny) =====
-            edges = cv2.Canny(gray, 50, 150)
-            edge_density = np.sum(edges > 0) / edges.size
-            edge_score = self._normalize_score(
-                edge_density * 100, 
-                0, 
-                self.smoke_edge_threshold, 
-                inverse=True
+            # ===== STEP 1: Check if this might be FOG instead of SMOKE =====
+            # FOG GATE (improved): Check for UNIFORM global fog
+            # Not just low saturation, but also:
+            # - Low contrast EVERYWHERE (std < 20)
+            # - Very low saturation (<35)
+            # - Medium-low brightness (90-140)
+            # AND these conditions PERSISTENT across entire image
+            
+            contrast_global = np.std(gray) # type: ignore
+            
+            # ONLY reject smoke if ALL fog conditions are met:
+            is_likely_fog = (
+                saturation < 35 and  # Very desaturated
+                contrast_global < 25 and  # Very uniform blur
+                brightness < 140  # Not bright like smoke+fire
             )
             
-            # ===== STEP 4: Contrast analysis (IMPORTANT for smoke vs fog) =====
-            # Smoke has variable/medium contrast (30-80)
-            # Fog has uniformly LOW contrast (<30)
-            contrast = np.std(gray) # type: ignore
+            if is_likely_fog:
+                logger.debug(f"Smoke detection - Likely FOG (saturation:{saturation:.1f}, "
+                            f"contrast:{contrast_global:.1f}, brightness:{brightness:.1f}). Score: 0.0")
+                return 0.0
             
-            if contrast < 30:
-                # Too low contrast = fog, not smoke
-                contrast_factor = 0.2
-            elif contrast > 80:
-                # Too high contrast = clear/not smoke
-                contrast_factor = 0.3
-            else:
-                # Perfect range for smoke
-                contrast_factor = 1.0
+            # ===== STEP 2: Brightness analysis =====
+            # Smoke can have wide brightness range:
+            # - Gray smoke: 60-120
+            # - Smoke+fire: 150-220 (bright from flames)
+            # Fog is typically more constrained (130-160)
+            brightness_score = 0.5  # Baseline
             
-            # ===== STEP 5: Saturation range for smoke =====
-            # Smoke: 40-100 (medium saturation)
-            # Fog: <40 (very desaturated)
-            # Clear: >100 (highly saturated)
-            if saturation < 40:
-                saturation_factor = 0.1
-            elif saturation > 100:
-                saturation_factor = 0.2
+            if brightness < 60:
+                # Very dark = probably night or clear dark areas
+                brightness_score = 0.2
+            elif brightness < 100:
+                # Dark smoke without much fire = possible
+                brightness_score = 0.8
+            elif brightness < 150:
+                # Medium brightness = good smoke range
+                brightness_score = 1.0
+            elif brightness < 200:
+                # Bright (from fire) = still smoke
+                brightness_score = 0.9
             else:
+                # Very bright = clear sky or bright clear conditions
+                brightness_score = 0.3
+            
+            # ===== STEP 3: Local contrast variation (KEY for smoke vs fog) =====
+            # Smoke has VARIABLE local contrast (aglomerados of density)
+            # Fog has UNIFORM low contrast everywhere
+            
+            # Calculate local contrast in different regions
+            h, w = gray.shape
+            region_h, region_w = h // 3, w // 3
+            local_contrasts = []
+            
+            for i in range(0, h - region_h, region_h):
+                for j in range(0, w - region_w, region_w):
+                    region = gray[i:i+region_h, j:j+region_w].flatten()
+                    local_contrasts.append(float(np.std(region)))  # type: ignore
+            
+            if local_contrasts:
+                # Variance of local contrasts = how different regions are
+                contrast_variance = np.std(local_contrasts)
+                local_contrast_mean = np.mean(local_contrasts)
+                
+                # Smoke: high variance (aglomerados) + medium-low mean contrast
+                # Fog: low variance (uniform) + very low mean contrast
+                localization_score = 0.0
+                if local_contrast_mean > 15:  # Not completely uniform fog
+                    localization_score = min(contrast_variance / 30, 1.0)
+                else:
+                    # Low mean contrast = could be fog or dense smoke
+                    localization_score = contrast_variance / 10 * 0.5
+            else:
+                localization_score = 0.5
+            
+            # ===== STEP 4: Edge detection (Canny) =====
+            edges = cv2.Canny(gray, 50, 150)
+            edge_density = np.sum(edges > 0) / edges.size
+            
+            # Smoke edges: moderate density (not crisp like clear, not absent like uniform fog)
+            if edge_density < 0.005:
+                # Very few edges = uniform fog
+                edge_score = 0.2
+            elif edge_density < 0.02:
+                # Moderate edges = smoke or light fog
+                edge_score = 0.8
+            else:
+                # High edges = clear or structured scene
+                edge_score = 0.3
+            
+            # ===== STEP 5: Saturation adaptive factor =====
+            # Smoke CAN have low saturation (gray smoke)
+            # But humo with fuego might be more colored
+            saturation_factor = 0.8  # Default: smoke usually grayish
+            
+            if saturation < 25:
+                # Very gray = consistent with smoke
                 saturation_factor = 0.9
+            elif saturation < 50:
+                # Still grayish = smoke
+                saturation_factor = 0.85
+            elif saturation < 80:
+                # Getting colored = smoke with flames maybe
+                saturation_factor = 0.7
+            else:
+                # Very colored = less likely smoke
+                saturation_factor = 0.4
+            
             
             # ===== STEP 6: Texture analysis =====
             kernel_size = 15
@@ -309,14 +371,20 @@ class DetectionUtil:
                 texture_score = min(texture_mean / 50.0, 1.0)
             
             # ===== FINAL SCORING =====
-            # Apply smoke-specific penalties
-            smoke_score = (0.3 * brightness_score * contrast_factor * saturation_factor +
-                           0.4 * edge_score * contrast_factor +
-                           0.3 * texture_score)
+            # Weight components:
+            # - brightness_score (0.25): Can vary widely with smoke+fire
+            # - localization_score (0.35): KEY differentiator (localized vs uniform)
+            # - edge_score (0.20): Moderate edges indicate smoke
+            # - saturation_factor (0.20): Smoke is usually desaturated
+            
+            smoke_score = (0.25 * brightness_score +
+                          0.35 * localization_score +
+                          0.20 * edge_score +
+                          0.20 * saturation_factor)
             
             logger.debug(f"Smoke detection - Brightness: {brightness:.2f} (score:{brightness_score:.2f}), "
-                        f"Edge: {edge_density*100:.2f}% (score:{edge_score:.2f}), "
-                        f"Contrast: {contrast:.2f} (factor:{contrast_factor:.2f}), "
+                        f"Localization: {localization_score:.2f}, "
+                        f"Edge density: {edge_density*100:.2f}% (score:{edge_score:.2f}), "
                         f"Saturation: {saturation:.2f} (factor:{saturation_factor:.2f}), "
                         f"Texture: {texture_mean:.2f} (score:{texture_score:.2f}), "
                         f"Final Score: {smoke_score:.3f}")
@@ -329,7 +397,17 @@ class DetectionUtil:
     
     def _detect_vapor_in_frame(self, frame: np.ndarray) -> float:
         """
-        Detect water vapor (similar to fog but less dense).
+        Detect water vapor (water mist, light fog, light rain mist).
+        
+        Vapor characteristics:
+        - High brightness (water reflects light)
+        - Very low saturation (white/grayish)
+        - Can appear uniform or localized
+        - Lighter than fog, not as dense
+        
+        Vapor vs Fog:
+        - Vapor: brightness 150-200+, saturation <70
+        - Fog: brightness 130-160, saturation <50
         
         Args:
             frame: Input frame in BGR format
@@ -338,16 +416,89 @@ class DetectionUtil:
             Vapor probability score (0.0-1.0)
         """
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         
-        # Vapor is lighter than fog
         brightness = np.mean(hsv[:, :, 2]) # type: ignore
         saturation = np.mean(hsv[:, :, 1]) # type: ignore
+        contrast = np.std(gray) # type: ignore
         
-        # High brightness, very low saturation
-        vapor_score = 0.0
-        if brightness > 160 and saturation < 60:
-            vapor_score = (brightness - 160) / 95.0 * 0.6
-            vapor_score += (60 - saturation) / 60.0 * 0.4
+        # ===== STEP 1: Brightness score =====
+        # Vapor is typically bright (water scatters light)
+        brightness_score = 0.0
+        if brightness < 140:
+            # Too dark for vapor
+            brightness_score = 0.0
+        elif brightness < 160:
+            # Lower end of vapor range
+            brightness_score = (brightness - 140) / 20.0 * 0.7
+        elif brightness < 200:
+            # Optimal vapor range
+            brightness_score = 1.0
+        else:
+            # Very bright but still possible (overexposed)
+            brightness_score = 0.8
+        
+        # ===== STEP 2: Saturation score =====
+        # Vapor is VERY desaturated (whitish/grayish)
+        saturation_score = 0.0
+        if saturation < 30:
+            # Very desaturated = ideal for vapor
+            saturation_score = 1.0
+        elif saturation < 50:
+            # Low saturation = still good
+            saturation_score = 1.0 - (saturation - 30) / 20.0 * 0.3
+        elif saturation < 70:
+            # Medium saturation = possible but less likely
+            saturation_score = max(0.0, 0.7 - (saturation - 50) / 20.0 * 0.5)
+        else:
+            # Too saturated for vapor
+            saturation_score = 0.0
+        
+        # ===== STEP 3: Contrast analysis =====
+        # Vapor has VERY low contrast (like fog)
+        # But slightly higher than pure fog
+        contrast_score = 0.0
+        if contrast < 20:
+            # Very low contrast = likely vapor/fog
+            contrast_score = 1.0
+        elif contrast < 40:
+            # Low contrast = possible vapor
+            contrast_score = 1.0 - (contrast - 20) / 20.0 * 0.4
+        elif contrast < 60:
+            # Medium contrast = less vapor-like
+            contrast_score = max(0.0, 0.6 - (contrast - 40) / 20.0 * 0.5)
+        else:
+            # High contrast = not vapor
+            contrast_score = 0.0
+        
+        # ===== STEP 4: Distinguish from FOG =====
+        # Fog is denser and darker than vapor
+        # Vapor is lighter and more transparent
+        
+        # If all conditions point to HIGH brightness + LOW saturation → likely VAPOR
+        # If conditions point to MEDIUM brightness + VERY LOW saturation + UNIFORM → likely FOG
+        
+        is_more_fog_like = (brightness < 150 and saturation < 40 and contrast < 25)
+        
+        if is_more_fog_like:
+            # Characteristics more consistent with fog
+            # Reduce vapor score
+            fog_penalty = 0.6
+        else:
+            fog_penalty = 1.0
+        
+        # ===== FINAL SCORING =====
+        # Combine scores with emphasis on high brightness + low saturation
+        vapor_score = (0.35 * brightness_score +
+                      0.35 * saturation_score +
+                      0.20 * contrast_score +
+                      0.10 * 1.0) * fog_penalty  # 10% baseline
+        
+        logger.debug(f"Vapor detection - Brightness: {brightness:.2f} (score:{brightness_score:.2f}), "
+                    f"Saturation: {saturation:.2f} (score:{saturation_score:.2f}), "
+                    f"Contrast: {contrast:.2f} (score:{contrast_score:.2f}), "
+                    f"Fog penalty: {fog_penalty:.2f}, "
+                    f"Final Score: {vapor_score:.3f}")
         
         return float(np.clip(vapor_score, 0.0, 1.0))
     

@@ -14,12 +14,12 @@ class Cloud_fogController:
     
     # Thresholds for fog and smoke conditions
     FOG_HUMIDITY_THRESHOLD = 90.0  # >= 90%
-    FOG_TEMP_MIN = 5.0             # >= 5°C
+    FOG_TEMP_MIN = 1.0             # >= 1°C
     FOG_TEMP_MAX = 20.0            # <= 20°C
-    
-    SMOKE_TEMP_THRESHOLD = 45.0    # >= 45°C
-    SMOKE_HUMIDITY_THRESHOLD = 40.0  # <= 40%
-    
+
+    SMOKE_TEMP_THRESHOLD = 38.0    # >= 38°C
+    SMOKE_HUMIDITY_THRESHOLD = 30.0  # <= 30%
+
     def __init__(self):
         """Initialize controller with utilities and cloud API config."""
         self.camera_ip = os.getenv('CAMERA_IP', '192.168.15.66')
